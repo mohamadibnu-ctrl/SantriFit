@@ -11,6 +11,16 @@ class AuthMiddleware
         if (!isset($_SESSION['user_id'])) {
             header('Location: ' . BASEURL . '/auth/index');
             exit;
+        } else if (class_exists('Database')) {
+            try {
+                $db = new Database();
+                $db->query("SELECT username FROM users WHERE id = :id");
+                $db->bind('id', $_SESSION['user_id']);
+                $fresh = $db->single();
+                if ($fresh && !empty($fresh['username'])) {
+                    $_SESSION['username'] = $fresh['username'];
+                }
+            } catch (Exception $e) {}
         }
     }
 

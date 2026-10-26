@@ -17,6 +17,7 @@ class Database {
 
         try {
             $this->dbh = new PDO($dsn, $this->user, $this->pass, $option);
+            $this->dbh->exec("SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
         } catch (PDOException $e) {
             // Uncomment to debug DB errors: die($e->getMessage());
         }

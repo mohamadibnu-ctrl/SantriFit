@@ -14,7 +14,7 @@ class Laporan_model {
                 COUNT(id) AS jumlah 
             FROM pemeriksaan 
             WHERE tanggal_pemeriksaan >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-            GROUP BY YEAR(tanggal_pemeriksaan), MONTH(tanggal_pemeriksaan)
+            GROUP BY YEAR(tanggal_pemeriksaan), MONTH(tanggal_pemeriksaan), MONTHNAME(tanggal_pemeriksaan)
             ORDER BY YEAR(tanggal_pemeriksaan) ASC, MONTH(tanggal_pemeriksaan) ASC
         ";
         $this->db->query($query);
@@ -29,7 +29,7 @@ class Laporan_model {
                 COUNT(pg.pemeriksaan_id) AS jumlah
             FROM pemeriksaan_gejala pg
             JOIN gejala g ON pg.gejala_id = g.id
-            GROUP BY g.id
+            GROUP BY g.id, g.nama_gejala
             ORDER BY jumlah DESC
             LIMIT 5
         ";

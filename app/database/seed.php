@@ -15,7 +15,7 @@ try {
     
     // 2. Tambah User (Admin, Dokter, Perawat)
     $users = [
-        ['admin', 'Super User'],
+        ['MOHAMAD IBNU SAEFULLAH', 'Super User'],
         ['dokter_ahmad', 'Dokter'],
         ['perawat_siti', 'Perawat']
     ];

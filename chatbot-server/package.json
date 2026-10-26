@@ -1,0 +1,19 @@
+{
+    "name": "santrifit-chatbot-service",
+    "version": "1.0.0",
+    "description": "SantriFit AI Chatbot Service using Node.js and Nous Research \/ Nvidia NIM",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js"
+    },
+    "keywords": [
+        "santrifit",
+        "chatbot",
+        "ai",
+        "nous-research",
+        "nvidia"
+    ],
+    "author": "SantriFit Team",
+    "license": "ISC"
+}

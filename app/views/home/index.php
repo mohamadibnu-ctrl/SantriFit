@@ -182,3 +182,7 @@ $s = $data['stats'];
     <?php endif; ?>
 
 </div>
+
+
+<!-- SantriFit AI Chatbot (Node.js & Nous Research) -->
+<?php require_once __DIR__ . '/chatbot.php'; ?>
