@@ -9,8 +9,8 @@ require_once __DIR__ . '/../app/models/Notification_model.php';
 try {
     $db = new Database();
 
-    // 1. Santri
-    $db->query("SELECT id, nis, nama, tempat_lahir, tanggal_lahir, jenis_kelamin, alamat FROM santri ORDER BY id ASC");
+    // 1. Santri (Lengkap semua data)
+    $db->query("SELECT id, nis, nama, tempat_lahir, tanggal_lahir, jenis_kelamin, alamat, kamar, kelas, no_kontak, nama_wali, kontak_wali, riwayat_penyakit, alergi, status_aktif FROM santri ORDER BY id ASC");
     $santri = $db->resultSet();
 
     // 2. Dokter

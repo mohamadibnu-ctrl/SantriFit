@@ -99,28 +99,18 @@ $santri = $isEdit ? $data['santri'] : [];
                     </div>
                 </div>
 
-                <h5 class="mb-3 text-teal border-bottom pb-2 mt-5"><i class="bi bi-three-dots"></i> Lain-lain</h5>
+                <?php if($isEdit) : ?>
+                <h5 class="mb-3 text-teal border-bottom pb-2 mt-5"><i class="bi bi-gear"></i> Status Santri</h5>
                 <div class="row mb-4">
-                    <div class="col-md-6">
-                        <label for="foto" class="form-label fw-semibold">Unggah Foto (Opsional, Maks 2MB)</label>
-                        <input class="form-control" type="file" id="foto" name="foto" accept="image/png, image/jpeg, image/jpg">
-                        <?php if($isEdit && !empty($santri['foto'])) : ?>
-                            <div class="mt-2 text-muted small">
-                                Foto saat ini: <?= htmlspecialchars($santri['foto']); ?> (Kosongkan jika tidak ingin mengubah foto)
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                    
-                    <?php if($isEdit) : ?>
                     <div class="col-md-6">
                         <label for="status_aktif" class="form-label fw-semibold">Status Santri</label>
                         <select class="form-select" id="status_aktif" name="status_aktif">
-                            <option value="1" <?= ($santri['status_aktif'] == '1') ? 'selected' : ''; ?>>Aktif (Belajar)</option>
-                            <option value="0" <?= ($santri['status_aktif'] == '0') ? 'selected' : ''; ?>>Nonaktif (Lulus/Pindah)</option>
+                            <option value="1" <?= (($santri['status_aktif'] ?? '1') == '1') ? 'selected' : ''; ?>>Aktif (Belajar)</option>
+                            <option value="0" <?= (($santri['status_aktif'] ?? '') == '0') ? 'selected' : ''; ?>>Nonaktif (Lulus/Pindah)</option>
                         </select>
                     </div>
-                    <?php endif; ?>
                 </div>
+                <?php endif; ?>
 
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-5 pt-3 border-top">
                     <button type="submit" class="btn btn-teal px-5 py-2 fw-bold"><i class="bi bi-save"></i> <?= $isEdit ? 'Simpan Perubahan' : 'Tambahkan Santri'; ?></button>

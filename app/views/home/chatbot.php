@@ -422,18 +422,20 @@ const CHATBOT_HOST = (window.location.hostname === 'localhost' || window.locatio
 const CHATBOT_API_URL = 'http://' + CHATBOT_HOST + ':' + CHATBOT_PORT + '/api/chat';
 const CHATBOT_HEALTH_URL = 'http://' + CHATBOT_HOST + ':' + CHATBOT_PORT + '/health';
 const NOTIF_API_URL = '<?= BASEURL; ?>/api_notifications.php';
+const START_CHATBOT_API_URL = '<?= BASEURL; ?>/api_start_chatbot.php';
 
 let chatHistory = [];
 let isChatOpen = false;
 let isNotifPanelOpen = false;
 let currentNotifFilter = 'all';
+let isStartingChatbotServer = false;
 
 function toggleSantriFitChat() {
     const box = document.getElementById('santrifit-chat-window');
     isChatOpen = !isChatOpen;
     if (isChatOpen) {
         box.classList.remove('d-none');
-        checkChatbotServerStatus();
+        checkChatbotServerStatus(true);
         fetchNotifCount();
         setTimeout(() => {
             const input = document.getElementById('santrifit-chat-input');
@@ -446,20 +448,48 @@ function toggleSantriFitChat() {
     }
 }
 
-async function checkChatbotServerStatus() {
+async function checkChatbotServerStatus(autoStart = true) {
     const statusText = document.getElementById('server-status-text');
-    if (!statusText) return;
+    if (!statusText) return false;
+
     try {
-        const res = await fetch(CHATBOT_HEALTH_URL, { method: 'GET', mode: 'cors' });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const res = await fetch(CHATBOT_HEALTH_URL, { method: 'GET', mode: 'cors', signal: controller.signal });
+        clearTimeout(timeoutId);
+
         if (res.ok) {
-            const data = await res.json();
             statusText.innerHTML = '<span class="text-success fw-bold">Online</span>';
+            return true;
         } else {
             statusText.innerHTML = '<span class="text-warning">Server HTTP ' + res.status + '</span>';
         }
     } catch (e) {
-        statusText.innerHTML = '<span class="text-danger fw-bold">Node.js Offline (Jalankan server)</span>';
+        if (autoStart && !isStartingChatbotServer) {
+            isStartingChatbotServer = true;
+            statusText.innerHTML = '<span class="text-primary fw-semibold"><span class="spinner-border spinner-border-sm me-1" role="status" style="width:0.72rem;height:0.72rem;"></span>Menyalakan Server AI...</span>';
+            try {
+                await fetch(START_CHATBOT_API_URL, { method: 'GET' });
+                for (let i = 0; i < 5; i++) {
+                    await new Promise(r => setTimeout(r, 600));
+                    try {
+                        const checkAgain = await fetch(CHATBOT_HEALTH_URL, { method: 'GET', mode: 'cors' });
+                        if (checkAgain.ok) {
+                            statusText.innerHTML = '<span class="text-success fw-bold">Online (Otomatis Aktif)</span>';
+                            isStartingChatbotServer = false;
+                            return true;
+                        }
+                    } catch (errCheck) {}
+                }
+            } catch (errStart) {
+                console.error("Gagal auto-start chatbot server:", errStart);
+            }
+            isStartingChatbotServer = false;
+        }
+        statusText.innerHTML = '<span class="text-danger fw-bold" style="cursor:pointer;" title="Klik untuk menyalakan server chatbot">Node.js Offline (Klik untuk menyalakan)</span>';
+        return false;
     }
+    return false;
 }
 
 function clearSantriFitChat() {
@@ -553,17 +583,41 @@ async function handleSendChat(event) {
     container.scrollTop = container.scrollHeight;
 
     try {
-        const response = await fetch(CHATBOT_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                message: message,
-                history: chatHistory,
-                user: typeof santriFitCurrentUser !== "undefined" ? santriFitCurrentUser : null
-            })
-        });
+        let response;
+        try {
+            response = await fetch(CHATBOT_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    history: chatHistory,
+                    user: typeof santriFitCurrentUser !== "undefined" ? santriFitCurrentUser : null
+                })
+            });
+        } catch (fetchErr) {
+            // Auto-start server di background jika belum berjalan
+            const statusEl = document.getElementById("server-status-text");
+            if (statusEl) {
+                statusEl.innerHTML = '<span class="text-primary fw-semibold"><span class="spinner-border spinner-border-sm me-1" role="status" style="width:0.72rem;height:0.72rem;"></span>Menyalakan Server AI...</span>';
+            }
+            await fetch(START_CHATBOT_API_URL, { method: 'GET' });
+            await new Promise(r => setTimeout(r, 1000));
+
+            // Retry request
+            response = await fetch(CHATBOT_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    history: chatHistory,
+                    user: typeof santriFitCurrentUser !== "undefined" ? santriFitCurrentUser : null
+                })
+            });
+        }
 
         const data = await response.json();
         typing.classList.add('d-none');

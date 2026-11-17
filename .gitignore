@@ -1,0 +1,15 @@
+# Environment files
+.env
+.env.local
+.env.*
+!.env.example
+chatbot-server/.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Temporary files & logs
+*.log
+scratch/
+scratch_test.php

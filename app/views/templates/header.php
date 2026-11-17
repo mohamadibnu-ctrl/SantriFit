@@ -93,6 +93,7 @@
               </a>
               <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                 <li><a class="dropdown-item" href="<?= BASEURL; ?>/profile">Profil Saya</a></li>
+                <li><a class="dropdown-item" href="<?= BASEURL; ?>/profile/telegram"><i class="bi bi-telegram text-primary me-1"></i> Hubungkan Telegram</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item text-danger" href="<?= BASEURL; ?>/auth/logout">Logout</a></li>
               </ul>

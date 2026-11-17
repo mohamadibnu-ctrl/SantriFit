@@ -89,11 +89,9 @@ class Notification_model {
         $isSuperUser = in_array('Super User', $roles);
 
         if ($isSuperUser) {
-            // Super User dapat melihat notifikasi sistem, administrasi, dan broadcast
             return "(user_id = :user_id OR user_id IS NULL)";
         }
 
-        // Bangun kondisi role-specific
         $roleClauses = ["target_role IS NULL"];
         foreach ($roles as $idx => $role) {
             $roleClauses[] = "target_role = :role_" . $idx;
@@ -192,7 +190,7 @@ class Notification_model {
     }
 
     /**
-     * Tambah notifikasi baru ke database
+     * Tambah notifikasi baru ke database dan teruskan ke Telegram jika akun terhubung
      */
     public function addNotification($data) {
         $sql = "INSERT INTO {$this->table} 
@@ -209,6 +207,19 @@ class Notification_model {
         $this->db->bind(':reference_type', $data['reference_type'] ?? null);
         $this->db->bind(':reference_id', $data['reference_id'] ?? null);
 
-        return $this->db->execute();
+        $result = $this->db->execute();
+
+        // Integrasi Notifikasi Telegram jika user_id spesifik tersedia (STEP 7)
+        if (!empty($data['user_id'])) {
+            try {
+                require_once dirname(__DIR__) . '/services/TelegramNotificationService.php';
+                $tgService = new TelegramNotificationService();
+                $tgService->sendToUser((int)$data['user_id'], $data['message'], $data['type'] ?? 'info', $data['title'] ?? null);
+            } catch (Throwable $e) {
+                // Abaikan error eksternal agar proses internal database tetap berhasil
+            }
+        }
+
+        return $result;
     }
 }

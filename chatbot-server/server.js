@@ -128,8 +128,39 @@ function getUserIdentityReply(user) {
     return `Anda saat ini login sebagai **${username}** dengan peran (**${roles}**) di sistem SantriFit.`;
 }
 
+// Format daftar santri secara rapi
+function formatSantriList(santriList) {
+    if (!santriList || !santriList.length) return 'Data santri belum tersedia di database SantriFit.';
+    const items = santriList.map((st, i) => {
+        const nama = (st.nama || '').trim();
+        const details = [];
+        if (st.nis) details.push('NIS: ' + st.nis);
+        if (st.kelas) details.push('Kelas: ' + st.kelas);
+        if (st.kamar) details.push('Kamar: ' + st.kamar);
+        return (i + 1) + '. **' + nama + '**' + (details.length ? ' (' + details.join(', ') + ')' : '');
+    }).join('\n');
+    return 'Berikut daftar santri yang terdaftar di sistem SantriFit:\n' + items;
+}
+
+// Deteksi topik entitas dari riwayat obrolan sebelumnya
+function getContextFromHistory(history = []) {
+    if (!Array.isArray(history) || history.length === 0) return null;
+    for (let i = history.length - 1; i >= 0; i--) {
+        const item = history[i];
+        const content = (item.content || '').toLowerCase().replace(/santrifit/g, '');
+        if (content.includes('dokter')) return 'dokter';
+        if (content.includes('perawat')) return 'perawat';
+        if (content.includes('pengguna') || content.includes('user') || content.includes('akun')) return 'user';
+        if (content.includes('obat') || content.includes('stok') || content.includes('stock')) return 'obat';
+        if (content.includes('santri') || content.includes('murid') || content.includes('siswa')) return 'santri';
+        if (content.includes('pemeriksaan') || content.includes('periksa')) return 'pemeriksaan';
+        if (content.includes('gejala')) return 'gejala';
+    }
+    return null;
+}
+
 // DIRECT DATABASE QUERY RESOLVER (Accurate, Instant, Read-Only)
-function resolveDirectDatabaseQuery(message, dbContext, user) {
+function resolveDirectDatabaseQuery(message, dbContext, user, history = []) {
     if (!dbContext || !dbContext.data) return null;
     const rawText = (message || '').trim();
     // Normalize text: lowercase, remove punctuation, collapse whitespace
@@ -151,6 +182,75 @@ function resolveDirectDatabaseQuery(message, dbContext, user) {
     const userList = d.users || [];
 
     const userRolesStr = Array.isArray(user?.roles) ? user.roles.join(', ') : (user?.roles || 'Pengguna');
+
+    // Context awareness dari percakapan sebelumnya
+    const histContext = getContextFromHistory(history);
+    const cleanText = text.replace(/santrifit/g, '');
+    const hasExplicitEntity = cleanText.includes('pengguna') || (cleanText.includes('user') && !cleanText.includes('identity')) || cleanText.includes('akun') ||
+        cleanText.includes('dokter') || cleanText.includes('perawat') || cleanText.includes('obat') || cleanText.includes('stok') ||
+        cleanText.includes('santri') || cleanText.includes('murid') || cleanText.includes('siswa') || cleanText.includes('gejala') || cleanText.includes('pemeriksaan') || cleanText.includes('tenaga medis') || cleanText.includes('medis') || cleanText.includes('riwayat data') || cleanText.includes('total riwayat');
+
+    // Follow-up murni tanpa menyebutkan nama entitas secara langsung
+    if (!hasExplicitEntity) {
+        const isPersonFollowUp = /^(siapa saja|siapa aja|siapa sajakah|siapa mereka|ada siapa saja|ada siapa aja|sebutkan|sebutkan namanya|siapa namanya|nama namanya|nama-namanya|siapa sajakah mereka|siapa orangnya|siapa aja orangnya|daftar namanya|siapa|siapakah mereka|siapa yg ada|siapa yang ada|siapa aja yang ada|siapa sih|siapa saja sih|siapa aja sih)$/i.test(text) ||
+            text.startsWith('siapa saja') || text.startsWith('siapa aja') || text.startsWith('sebutkan nama') || text.startsWith('ada siapa');
+        const isItemFollowUp = /^(apa saja|apa aja|ada apa saja|ada apa aja|sebutkan apa saja|daftarnya apa saja)$/i.test(text);
+        const isCountFollowUp = /^(berapa orang|ada berapa|totalnya berapa|jumlahnya berapa|berapa banyak|berapa totalnya|berapa jumlahnya)$/i.test(text);
+
+        if (isCountFollowUp) {
+            if (histContext === 'dokter') {
+                const total = s.total_dokter || dokterList.length;
+                return 'Total dokter yang bertugas di SantriFit saat ini ada **' + total + ' orang dokter**.';
+            }
+            if (histContext === 'perawat') {
+                const total = s.total_perawat || perawatList.length;
+                return 'Total perawat yang bertugas di SantriFit saat ini ada **' + total + ' orang perawat**.';
+            }
+            if (histContext === 'user') {
+                const total = s.total_user || userList.length;
+                return 'Total pengguna (user) yang terdaftar di sistem SantriFit saat ini ada **' + total + ' pengguna**.';
+            }
+            if (histContext === 'obat') {
+                const total = s.total_obat || obatList.length;
+                return 'Total jenis obat yang terdata di sistem SantriFit saat ini ada **' + total + ' jenis obat**.';
+            }
+            const total = s.total_santri || santriList.length;
+            return 'Total santri yang tercatat di sistem SantriFit saat ini ada **' + total + ' orang santri**.';
+        }
+
+        if (isPersonFollowUp) {
+            if (histContext === 'dokter') {
+                if (!dokterList.length) return 'Data dokter belum tersedia di database SantriFit.';
+                const items = dokterList.map((dk, i) => (i + 1) + '. **' + dk.nama + '** (Spesialisasi: ' + (dk.spesialisasi || 'Umum') + ', SIP: ' + (dk.no_izin_praktek || '-') + ')').join('\n');
+                return 'Berikut daftar dokter yang bertugas di SantriFit:\n' + items;
+            }
+            if (histContext === 'perawat') {
+                if (!perawatList.length) return 'Data perawat belum tersedia di database SantriFit.';
+                const items = perawatList.map((pr, i) => (i + 1) + '. **' + pr.nama + '** (NIP: ' + (pr.nip || '-') + ')').join('\n');
+                return 'Berikut daftar perawat yang bertugas di SantriFit:\n' + items;
+            }
+            if (histContext === 'user') {
+                if (!userList.length) return 'Data pengguna belum tersedia di database SantriFit.';
+                const items = userList.map((u, i) => (i + 1) + '. **' + u.username + '** — Peran: **' + (u.roles || 'Pengguna') + '**').join('\n');
+                return 'Berikut daftar pengguna (user) yang terdaftar di sistem SantriFit:\n' + items;
+            }
+            return formatSantriList(santriList);
+        }
+
+        if (isItemFollowUp) {
+            if (histContext === 'obat') {
+                if (!obatList.length) return 'Data obat belum tersedia di database SantriFit.';
+                const items = obatList.map((ob, i) => (i + 1) + '. **' + ob.nama_obat + '** — Stok: **' + (ob.stok ?? 0) + ' ' + (ob.satuan || 'Pcs') + '**').join('\n');
+                return 'Berikut data stok obat di SantriFit:\n' + items;
+            }
+            if (histContext === 'gejala') {
+                if (!gejalaList.length) return 'Data gejala belum tersedia di database SantriFit.';
+                const items = gejalaList.map((g, i) => (i + 1) + '. **' + g.nama_gejala + '** (' + (g.deskripsi || '-') + ')').join('\n');
+                return 'Berikut daftar gejala kesehatan yang tercatat di SantriFit:\n' + items;
+            }
+            return formatSantriList(santriList);
+        }
+    }
 
     // 0. NOTIFIKASI QUERY
     if (text.includes('notifikasi') || text.includes('pemberitahuan') || text.includes('notif')) {
@@ -308,6 +408,45 @@ function resolveDirectDatabaseQuery(message, dbContext, user) {
         }
     }
 
+
+    // 5.9 TENAGA MEDIS (Kombinasi Dokter & Perawat atau query "Tenaga Medis")
+    const isTenagaMedisQuery = text.includes('tenaga medis') || text.includes('petugas medis') || (text.includes('dokter') && text.includes('perawat'));
+    if (isTenagaMedisQuery) {
+        const totalDokter = s.total_dokter !== undefined ? s.total_dokter : dokterList.length;
+        const totalPerawat = s.total_perawat !== undefined ? s.total_perawat : perawatList.length;
+        const totalMedis = totalDokter + totalPerawat;
+
+        const dokterItems = dokterList.length 
+            ? dokterList.map((dk, i) => `${i + 1}. **${dk.nama}** (Spesialisasi: ${dk.spesialisasi || 'Umum'}, SIP: ${dk.no_izin_praktek || '-'})`).join('\n')
+            : 'Belum ada data dokter.';
+        
+        const perawatItems = perawatList.length
+            ? perawatList.map((pr, i) => `${i + 1}. **${pr.nama}** (NIP: ${pr.nip || '-'})`).join('\n')
+            : 'Belum ada data perawat.';
+
+        // Jika hanya menanyakan jumlah/total tenaga medis
+        if ((text.includes('berapa') || text.includes('total') || text.includes('jumlah')) && !text.includes('siapa') && !text.includes('daftar') && !text.includes('sebutkan') && !text.includes('nama') && !text.includes('riwayat')) {
+            return `Total tenaga medis di SantriFit saat ini ada **${totalMedis} orang** (D:${totalDokter} P:${totalPerawat}).`;
+        }
+
+        let out = `Berikut data tenaga medis yang bertugas di SantriFit (Total: **${totalMedis} orang** [D:${totalDokter} P:${totalPerawat}]):\n\n`;
+        out += `🩺 **Dokter (${totalDokter}):**\n${dokterItems}\n\n`;
+        out += `💉 **Perawat (${totalPerawat}):**\n${perawatItems}`;
+
+        // Cek jika pertanyaan juga menanyakan "total riwayat data" / "riwayat"
+        if (text.includes('riwayat') || text.includes('data')) {
+            const totalRiwayat = s.total_pemeriksaan !== undefined ? s.total_pemeriksaan : pemeriksaanList.length;
+            out += `\n\n📊 **Total Riwayat Data:**\nSaat ini tercatat **${totalRiwayat} data riwayat pemeriksaan** di sistem SantriFit.`;
+            if (pemeriksaanList.length > 0) {
+                const p = pemeriksaanList[0];
+                const cleanKeluhan = p.keluhan_utama ? p.keluhan_utama.trim() : '-';
+                out += ` (Pemeriksaan terakhir atas nama santri **${p.nama_santri}** [Keluhan: ${cleanKeluhan}, Status: ${p.status || '-'}]).`;
+            }
+        }
+
+        return out;
+    }
+
     // 6. DOKTER
     const isDokterQuery = text.includes('dokter');
     if (isDokterQuery) {
@@ -332,16 +471,21 @@ function resolveDirectDatabaseQuery(message, dbContext, user) {
         return `Berikut perawat yang bertugas di SantriFit:\n${items}`;
     }
 
-    // 8. PEMERIKSAAN KESEHATAN
-    const isPemeriksaanQuery = text.includes('pemeriksaan') || text.includes('periksa') || text.includes('rekam medis');
+    // 8. PEMERIKSAAN KESEHATAN / TOTAL RIWAYAT DATA
+    const isPemeriksaanQuery = text.includes('pemeriksaan') || text.includes('periksa') || text.includes('rekam medis') || text.includes('riwayat data') || text.includes('total riwayat') || (text.includes('riwayat') && !matchSantri);
     if (isPemeriksaanQuery) {
-        if (/berapa.*pemeriksaan/.test(text) || /(total|jumlah).*pemeriksaan/.test(text)) {
-            const total = s.total_pemeriksaan || pemeriksaanList.length;
-            return `Total riwayat pemeriksaan kesehatan yang tercatat di database SantriFit saat ini ada **${total} pemeriksaan**.`;
+        const total = s.total_pemeriksaan !== undefined ? s.total_pemeriksaan : pemeriksaanList.length;
+        if (/berapa.*(pemeriksaan|riwayat)/.test(text) || /(total|jumlah).*(pemeriksaan|riwayat)/.test(text) || /(pemeriksaan|riwayat).*ada berapa/.test(text) || text.includes('total riwayat data') || text.includes('riwayat data')) {
+            let out = `Total riwayat data (pemeriksaan kesehatan) yang tercatat di sistem SantriFit saat ini ada **${total} data**.`;
+            if (pemeriksaanList.length > 0 && (text.includes('siapa') || text.includes('apa') || text.includes('detail') || text.includes('sebutkan'))) {
+                out += `\n\nBerikut rincian pemeriksaan terkini:\n`;
+                out += pemeriksaanList.slice(0, 5).map((p, i) => `${i + 1}. **${p.nama_santri}** (${p.tanggal_pemeriksaan || '-'}) — Keluhan: ${p.keluhan_utama ? p.keluhan_utama.trim() : '-'} (Status: ${p.status || '-'})`).join('\n');
+            }
+            return out;
         }
         if (!pemeriksaanList.length) return "Belum ada catatan riwayat pemeriksaan di database SantriFit.";
-        const items = pemeriksaanList.slice(0, 5).map((p, i) => `${i + 1}. **${p.nama_santri}** (${p.tanggal_pemeriksaan || '-'}) — Keluhan: ${p.keluhan_utama || '-'} (Status: ${p.status || '-'})`).join('\n');
-        return `Berikut riwayat pemeriksaan kesehatan terkini di SantriFit:\n${items}`;
+        const items = pemeriksaanList.slice(0, 5).map((p, i) => `${i + 1}. **${p.nama_santri}** (${p.tanggal_pemeriksaan || '-'}) — Keluhan: ${p.keluhan_utama ? p.keluhan_utama.trim() : '-'} (Status: ${p.status || '-'})`).join('\n');
+        return `Berikut riwayat pemeriksaan kesehatan terkini di SantriFit (Total: **${total} data**):\n${items}`;
     }
 
     // 9. GEJALA KHUSUS (Demam / Panas)
@@ -367,8 +511,8 @@ function resolveDirectDatabaseQuery(message, dbContext, user) {
 }
 
 // INTELLIGENT TOPIC-AWARE FALLBACK (Never dumps unrelated system metrics!)
-function getTopicAwareFallback(message, dbContext, user) {
-    const direct = resolveDirectDatabaseQuery(message, dbContext, user);
+function getTopicAwareFallback(message, dbContext, user, history = []) {
+    const direct = resolveDirectDatabaseQuery(message, dbContext, user, history);
     if (direct) return direct;
 
     const rawText = (message || '').toLowerCase();
@@ -659,7 +803,7 @@ const server = http.createServer(async (req, res) => {
                 const dbContext = await fetchDatabaseContext(user);
 
                 // 5. DIRECT DATABASE & NOTIFICATION QUERY MATCHING (Instant & 100% Accurate)
-                const directAnswer = resolveDirectDatabaseQuery(userMessage, dbContext, user);
+                const directAnswer = resolveDirectDatabaseQuery(userMessage, dbContext, user, conversationHistory);
                 if (directAnswer) {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
@@ -691,7 +835,7 @@ const server = http.createServer(async (req, res) => {
                     result = await callNvidiaNIM(messages, systemPrompt, NVIDIA_MODEL);
                 } catch (aiErr) {
                     console.warn(`[AI Engine Notice]: ${aiErr.message}. Utilizing Topic-Aware Fallback.`);
-                    const fallbackReply = getTopicAwareFallback(userMessage, dbContext, user);
+                    const fallbackReply = getTopicAwareFallback(userMessage, dbContext, user, conversationHistory);
                     result = {
                         reply: fallbackReply,
                         model: 'SantriFit-Live-Database',
